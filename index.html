@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Cine Plus TV 📺</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<!-- ✅ VERIFICACIÓN MONETAG -->
+<meta name="monetag" content="16ff179b5ba5c5423d6a1845b278910f">
+
+<style>
+body{margin:0;background:#000;color:#fff;font-family:Arial}
+#welcome{
+position:fixed;inset:0;
+background:linear-gradient(rgba(0,0,0,.6),rgba(0,0,0,.9)),
+url("https://image.tmdb.org/t/p/original/9O1Iy9od7k0VZP8h7lX0w5sHj2J.jpg");
+background-size:cover;
+display:flex;flex-direction:column;
+justify-content:center;align-items:center;
+z-index:10000;
+animation:fadeOut 2s ease 4s forwards;
+}
+@keyframes fadeOut{to{opacity:0;visibility:hidden}}
+#welcome h1{font-size:46px;color:#e50914;margin:0}
+#welcome p{color:#ccc;font-size:18px}
+header{background:#111;padding:15px}
+.logo{color:#e50914;font-size:24px;font-weight:bold}
+#movies{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:15px;padding:20px}
+.card img{width:100%;height:230px;object-fit:cover}
+#tv{position:fixed;inset:0;background:#000;display:flex;flex-direction:column;align-items:center}
+#player{width:90%;max-width:900px;height:500px}
+.controls button{background:#e50914;border:none;padding:10px 20px;color:#fff}
+</style>
+</head>
+
+<body>
+
+<div id="welcome">
+  <h1>🎬 Cine Plus</h1>
+  <p>Modo TV automático</p>
+</div>
+
+<header>
+  <div class="logo">🎬 Cine Plus TV</div>
+</header>
+
+<div id="movies"></div>
+<div id="sentinel"></div>
+
+<div id="tv">
+  <div id="player"></div>
+  <div class="controls">
+    <button onclick="skip()">⏭ Siguiente</button>
+  </div>
+</div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+
+<script>
+/* ===== REGISTRO SERVICE WORKER (MONETAG) ===== */
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/cineplus/service-worker.js")
+  .then(()=>console.log("Monetag SW activo"))
+  .catch(e=>console.error("SW error",e));
+}
+</script>
+
+<script>
+const OMDB_KEY="d58f0933";
+const TMDB_KEY="a75df45f5957e88b88043e6e9558b941";
+let playlist=[],page=1,index=0,player;
+
+function onYouTubeIframeAPIReady(){
+player=new YT.Player("player",{
+playerVars:{autoplay:1,controls:1,mute:1},
+events:{onStateChange:e=>{if(e.data===0)next();}}
+});
+}
+
+function play(id){player.loadVideoById(id);}
+function skip(){next();}
+
+async function next(){
+index++;
+if(index>=playlist.length) await load();
+playTrailer(playlist[index]);
+}
+
+async function playTrailer(imdb){
+const f=await fetch(`https://api.themoviedb.org/3/find/${imdb}?api_key=${TMDB_KEY}&external_source=imdb_id`);
+const d=await f.json();
+if(!d.movie_results[0]) return next();
+const v=await fetch(`https://api.themoviedb.org/3/movie/${d.movie_results[0].id}/videos?api_key=${TMDB_KEY}`);
+const vd=await v.json();
+const t=vd.results.find(x=>x.site==="YouTube");
+if(t) play(t.key); else next();
+}
+
+async function load(){
+const r=await fetch(`https://www.omdbapi.com/?apikey=${OMDB_KEY}&s=movie&page=${page}`);
+const d=await r.json();
+if(d.Response==="True"){
+d.Search.forEach(m=>{
+playlist.push(m.imdbID);
+const c=document.createElement("div");
+c.className="card";
+c.innerHTML=`<img src="${m.Poster}"><p>${m.Title}</p>`;
+c.onclick=()=>{index=playlist.indexOf(m.imdbID);playTrailer(m.imdbID);}
+movies.appendChild(c);
+});
+page++;
+}
+}
+
+new IntersectionObserver(e=>e[0].isIntersecting&&load()).observe(sentinel);
+
+window.onload=async()=>{
+await load();
+setTimeout(()=>playTrailer(playlist[0]),4500);
+};
+</script>
+
+</body>
+</html>
+
